@@ -1,0 +1,27 @@
+// Gerado pelo CMake a partir de src/storage/migrations/*.sql — não editar à mão.
+// O .sql é a fonte da verdade; este header só embute o texto no binário.
+#pragma once
+
+namespace iterador::storage::migrations {
+
+inline constexpr const char* kMigration0001Init = R"SQL(
+@MIGRATION_0001_SQL@
+)SQL";
+
+inline constexpr const char* kMigration0002LinkTransactionInvestment = R"SQL(
+@MIGRATION_0002_SQL@
+)SQL";
+
+inline constexpr const char* kMigration0003RedesignBudgetsAsGoals = R"SQL(
+@MIGRATION_0003_SQL@
+)SQL";
+
+inline constexpr const char* kMigration0004AddTransactionSortOrder = R"SQL(
+@MIGRATION_0004_SQL@
+)SQL";
+
+inline constexpr const char* kMigration0005AddTransactionRecurringFlag = R"SQL(
+@MIGRATION_0005_SQL@
+)SQL";
+
+}  // namespace iterador::storage::migrations

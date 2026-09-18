@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Iterador
+Comment=Gerenciador de finanças pessoais
+Exec=Iterador
+Icon=iterador
+Terminal=false
+Categories=Utility;Office;Finance;

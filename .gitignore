@@ -1,0 +1,48 @@
+# Build outputs
+Backend/build/
+UI/_build/
+*.so
+*.pyd
+*.dll
+*.dylib
+
+# Instaladores (scripts/build_installer_linux.sh / .ps1, ver Guide/decisions/0035-...) — saída
+# gerada, nunca versionada; scripts/packaging/*.iss/*.spec/*.desktop/icon.ico continuam versionados
+/build/
+/build-win/
+/dist-installers/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Databases (dev data, never commit real user data)
+*.db
+*.db-journal
+*.db-wal
+
+# Sync peer config (local machine, not shared)
+peers.json
+
+# Guide/ — arquivos locais, não versionados (pedido do usuário)
+Guide/dev-practices.md
+Guide/spreadsheet-reference.md
+Guide/checklist.md
+
+# Android / Gradle (App/ has its own .gitignore too, this is a safety net)
+App/.gradle/
+App/.idea/
+App/local.properties
+App/app/build/
+App/build/
+
+# Editors / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Sync tool conflict artifacts
+*.sync-conflict-*
