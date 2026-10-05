@@ -7,8 +7,6 @@ peer-to-peer entre dispositivos via LAN e Tailscale.
 - Backend: C++ (exposto ao Python via pybind11)
 - App Android: `App/` (projeto separado, fase futura)
 
-Toda a documentação viva do projeto — arquitetura, mapa de arquivos, referência de funções,
-como rodar — fica em **[`Guide/`](Guide/README.md)**. Comece por lá.
 
 ## Quickstart
 
@@ -17,5 +15,3 @@ como rodar — fica em **[`Guide/`](Guide/README.md)**. Comece por lá.
 ./scripts/build_backend.sh
 ./scripts/run_ui.sh
 ```
-
-Veja [`Guide/usage.md`](Guide/usage.md) para detalhes e troubleshooting.
