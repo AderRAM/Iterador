@@ -1,10 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="purple_200">#FFBB86FC</color>
-    <color name="purple_500">#FF6200EE</color>
-    <color name="purple_700">#FF3700B3</color>
-    <color name="teal_200">#FF03DAC5</color>
-    <color name="teal_700">#FF018786</color>
+    <!-- Brick Ember / Indigo: mesmos papéis fixos de destaque do desktop (despesa/receita) — ver
+         Guide/architecture.md > Identidade visual e UI/iterador_ui/theme.py. -->
+    <color name="brick_ember">#FFB7410E</color>
+    <color name="brick_ember_dark">#FF8A3009</color>
+    <color name="indigo">#FF4B0082</color>
+    <color name="carbon_black">#FF1A1A1A</color>
+    <color name="deep_saffron">#FFFF9933</color>
+
+    <color name="value_income">#FF2E7D32</color>
+    <color name="value_expense">#FFC62828</color>
+
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 </resources>

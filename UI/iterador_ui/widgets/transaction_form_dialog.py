@@ -18,6 +18,69 @@ from iterador_ui import backend_bridge, theme
 from iterador_ui.widgets.category_picker import CategoryPicker
 from iterador_ui.widgets.dialog_utils import make_modal
 
+# Minimal undo/redo history for a (CTk)Entry widget.
+# Since tkinter Entry has no history, we maintain our own stack.
+# Supports both Ctrl+Z (undo) and Ctrl+Shift+Z (redo) as commonly expected
+# on Linux/Windows respectively.
+class EntryHistory:
+    """Minimal undo/redo for a (CTk)Entry."""
+
+    def __init__(self, entry, limit=200):
+        self.entry = entry
+        self.limit = limit
+        self.undo_stack = [entry.get()]
+        self.redo_stack = []
+        self._restoring = False
+
+        # Snapshot on key release and paste/cut events
+        entry.bind("<KeyRelease>", self._snapshot, add="+")
+        entry.bind("<<Paste>>", lambda e: entry.after_idle(self._snapshot), add="+")
+        entry.bind("<<Cut>>", lambda e: entry.after_idle(self._snapshot), add="+")
+
+        # Bind both Ctrl+Z and Ctrl+Shift+Z to undo/redo
+        entry.bind("<Control-z>", lambda e: self.undo())
+        entry.bind("<Control-Z>", lambda e: self.undo())
+        entry.bind("<Control-y>", lambda e: self.redo())
+        entry.bind("<Control-Y>", lambda e: self.redo())
+        entry.bind("<Control-Shift-Z>", lambda e: self.redo())
+        entry.bind("<Control-Shift-z>", lambda e: self.redo())
+
+    def _snapshot(self, _event=None):
+        """Save current text to undo stack if it changed."""
+        if self._restoring:
+            return
+        text = self.entry.get()
+        if text != self.undo_stack[-1]:
+            self.undo_stack.append(text)
+            self.redo_stack.clear()
+            # Trim history to limit
+            if len(self.undo_stack) > self.limit:
+                del self.undo_stack[:-self.limit]
+
+    def _set(self, text):
+        """Set entry text without triggering snapshots."""
+        self._restoring = True
+        self.entry.delete(0, "end")
+        self.entry.insert(0, text)
+        self.entry.icursor("end")
+        self._restoring = False
+
+    def undo(self):
+        """Revert to previous text state. Returns "break" to stop event propagation."""
+        if len(self.undo_stack) > 1:
+            self.redo_stack.append(self.undo_stack.pop())
+            self._set(self.undo_stack[-1])
+        return "break"
+
+    def redo(self):
+        """Restore undone text state. Returns "break" to stop event propagation."""
+        if self.redo_stack:
+            text = self.redo_stack.pop()
+            self.undo_stack.append(text)
+            self._set(text)
+        return "break"
+
+
 # Altura generosa de propósito: com os campos + botão, o conteúdo já passava da altura
 # original, deixando o botão "Adicionar" cortado até o usuário redimensionar a janela na mão.
 # +50px em relação ao original — `CategoryPicker` (ver ADR-0029) pode ocupar até 2 linhas de
@@ -52,6 +115,8 @@ class TransactionFormDialog(ctk.CTkToplevel):
                          else datetime.date.today())
         self._date_entry.insert(0, initial_date.strftime(_DATE_FORMAT))
         self._date_entry.pack(fill="x", padx=20)
+        # Set up undo/redo history for this entry
+        _date_history = EntryHistory(self._date_entry)
 
         ctk.CTkLabel(self, text="Descrição", text_color=theme.TEXT_PRIMARY).pack(
             anchor="w", padx=20, pady=(16, 4))
@@ -59,6 +124,8 @@ class TransactionFormDialog(ctk.CTkToplevel):
         if is_edit:
             self._description_entry.insert(0, transaction.description)
         self._description_entry.pack(fill="x", padx=20)
+        # Set up undo/redo history for this entry
+        _description_history = EntryHistory(self._description_entry)
 
         ctk.CTkLabel(self, text="Valor (R$)", text_color=theme.TEXT_PRIMARY).pack(
             anchor="w", padx=20, pady=(16, 4))
@@ -67,6 +134,8 @@ class TransactionFormDialog(ctk.CTkToplevel):
             value_text = f"{abs(transaction.amount.cents) / 100:.2f}".replace(".", ",")
             self._value_entry.insert(0, value_text)
         self._value_entry.pack(fill="x", padx=20)
+        # Set up undo/redo history for this entry
+        _value_history = EntryHistory(self._value_entry)
 
         ctk.CTkLabel(self, text="Tipo", text_color=theme.TEXT_PRIMARY).pack(
             anchor="w", padx=20, pady=(16, 4))

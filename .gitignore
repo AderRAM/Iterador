@@ -6,6 +6,8 @@ UI/_build/
 *.dll
 *.dylib
 
+UI/assets/Atlas.jpg
+
 # Instaladores (scripts/build_installer_linux.sh / .ps1, ver Guide/decisions/0035-...) — saída
 # gerada, nunca versionada; scripts/packaging/*.iss/*.spec/*.desktop/icon.ico continuam versionados
 /build/
@@ -46,3 +48,6 @@ App/build/
 
 # Sync tool conflict artifacts
 *.sync-conflict-*
+
+# Dados do usuário (planilhas, extratos CSV - dados locais, não versionados)
+Dados/

@@ -6,6 +6,10 @@ Só lógica de leitura/mapeamento aqui — nenhuma chamada a `backend_bridge` ou
 Quem decide o que fazer com o resultado (criar as transações, deduplicar, mostrar resumo) é
 `SettingsView` (UI/iterador_ui/views/settings_view.py).
 
+Além disso, o módulo exporta a função `detect_conflicts()` que pode ser usada pela UI para
+identificar transações já existentes na base de dados que têm mesma data+descrição mas valor
+diferente — permitindo ao usuário decidir qual valor manter e evitando redundância silenciosa.
+
 Formato observado (3 eras, planilha de ~3 anos de uso real):
 
 - Cada aba é um período, nomeada "dd-mm-aa" (só mês/ano são confiáveis no nome).
@@ -215,4 +219,66 @@ def parse_workbook(path: str) -> ImportResult:
                 sheet_name=sheet_name,
             ))
 
-    return result
+
+def detect_conflicts(parsed_transactions, existing_transactions):
+    """Detect conflicts between parsed transactions and existing database entries.
+
+    For each parsed transaction, checks if there's already a transaction in the database
+    with the same occurred_at + description but different amount_cents.
+
+    Returns a list of dicts with:
+      - parsed: the ParsedTransaction
+      - existing: the matching existing Transaction object (or None)
+      - conflict: True if there's a value mismatch
+      - key: (occurred_at, description) for reference
+      - is_duplicate_value_match: True if same value already exists (no conflict, just duplicate)
+    """
+    conflicts = []
+    existing_by_key = {}
+
+    # Build lookup: (occurred_at, description_lower) -> list of existing transactions
+    for t in existing_transactions:
+        key = (t.occurred_at, t.description.lower())
+        existing_by_key.setdefault(key, []).append(t)
+
+    for parsed in parsed_transactions:
+        key = (parsed.occurred_at, parsed.description.lower())
+        matches = existing_by_key.get(key, [])
+
+        if not matches:
+            # No existing transaction with same data+description
+            conflicts.append({
+                'parsed': parsed,
+                'existing': None,
+                'conflict': False,
+                'key': key,
+            })
+        else:
+            # Find matches with different value
+            value_matches = [t for t in matches if t.amount_cents == parsed.amount_cents]
+            if value_matches:
+                # Same value exists - no conflict, but it's a duplicate
+                conflicts.append({
+                    'parsed': parsed,
+                    'existing': value_matches[0],
+                    'conflict': False,
+                    'key': key,
+                    'is_duplicate_value_match': True,
+                })
+            else:
+                # Different value(s) exist - this is a conflict
+                # Show the existing values for the user to choose
+                existing_values = {
+                    t.amount_cents: {'description': t.description, 'category': t.category_name}
+                    for t in matches
+                }
+                conflicts.append({
+                    'parsed': parsed,
+                    'existing': matches[0],
+                    'conflict': True,
+                    'key': key,
+                    'existing_values': existing_values,
+                })
+
+    return conflicts
+

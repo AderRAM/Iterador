@@ -65,7 +65,7 @@ class MonthSelector(ctk.CTkFrame):
 
         self._prev_button = ctk.CTkButton(
             self, text="◀", width=32, fg_color=theme.BG_SURFACE, text_color=theme.TEXT_PRIMARY,
-            hover_color=theme.INDIGO, command=self._go_previous,
+            hover_color=theme.INDIGO, command=self._go_next,
         )
         self._prev_button.pack(side="left", padx=(0, 4))
 
@@ -75,7 +75,7 @@ class MonthSelector(ctk.CTkFrame):
 
         self._next_button = ctk.CTkButton(
             self, text="▶", width=32, fg_color=theme.BG_SURFACE, text_color=theme.TEXT_PRIMARY,
-            hover_color=theme.INDIGO, command=self._go_next,
+            hover_color=theme.INDIGO, command=self._go_previous,
         )
         self._next_button.pack(side="left", padx=(4, 0))
 
@@ -134,8 +134,8 @@ class MonthSelector(ctk.CTkFrame):
 
         self._months_sorted = months
         index = months.index(self._selected_month)
-        self._prev_button.configure(state="normal" if index > 0 else "disabled")
-        self._next_button.configure(state="normal" if index < len(months) - 1 else "disabled")
+        self._prev_button.configure(state="normal" if index < len(months) - 1 else "disabled")
+        self._next_button.configure(state="normal" if index > 0 else "disabled")
 
     def _select(self, month_str: str) -> None:
         self._selected_month = month_str

@@ -509,11 +509,24 @@ class DashboardView(ctk.CTkFrame):
 
     def _filtered_transactions(self) -> list:
         query = self._search_var.get().strip().lower()
-        if not query:
-            return self._current_transactions
-        return [
-            t for t in self._current_transactions
-            if query in t.description.lower() or query in t.category_name.lower()]
+        transactions = self._current_transactions
+
+        # Pinned (recurring) transactions sempre ficam no topo, independente da ordem
+        pinned = [t for t in transactions if t.is_recurring]
+        regular = [t for t in transactions if not t.is_recurring]
+
+        if query:
+            # Aplica filtro de busca separadamente para pinned e regular
+            pinned_filtered = [
+                t for t in pinned
+                if query in t.description.lower() or query in t.category_name.lower()]
+            regular_filtered = [
+                t for t in regular
+                if query in t.description.lower() or query in t.category_name.lower()]
+            return pinned_filtered + regular_filtered
+        else:
+            # Sem filtro: pinned sempre no topo, depois regularem ordem original
+            return pinned + regular
 
     def _date_header_text(self) -> str:
         if self._date_sort_mode == "asc":

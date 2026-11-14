@@ -70,11 +70,11 @@ class SettingsView(ctk.CTkFrame):
         buttons_row = ctk.CTkFrame(data_frame, fg_color="transparent")
         buttons_row.pack(fill="x", padx=16, pady=(0, 8))
         ctk.CTkButton(
-            buttons_row, text="Importar planilha (.xlsx)", command=self._import_spreadsheet,
+            buttons_row, text="Importar planilha", command=self._import_spreadsheet,
             **theme.outline_button_style(),
         ).pack(side="left")
         ctk.CTkButton(
-            buttons_row, text="Importar extrato (.csv)", command=self._import_statement,
+            buttons_row, text="Importar extrato", command=self._import_statement,
             **theme.outline_button_style(),
         ).pack(side="left", padx=(8, 0))
         ctk.CTkButton(
@@ -277,7 +277,8 @@ class SettingsView(ctk.CTkFrame):
 
     def _import_spreadsheet(self) -> None:
         path = filedialog.askopenfilename(
-            title="Escolher planilha", filetypes=[("Planilha Excel", "*.xlsx")])
+            title="Escolher arquivo de importação",
+            filetypes=[("Arquivos de Dados", "*.xlsx;*.csv"), ("Planilha Excel", "*.xlsx"), ("CSV", "*.csv"), ("Todos os arquivos", "*.*")])
         if not path:
             return
         self._data_status_label.configure(
@@ -289,36 +290,186 @@ class SettingsView(ctk.CTkFrame):
 
     def _import_worker(self, path: str) -> None:
         try:
-            result = spreadsheet_import.parse_workbook(path)
+            # Detectar tipo de arquivo pela extensão
+            if path.lower().endswith('.csv'):
+                # Importar como extrato bancário (CSV)
+                from iterador_ui.statement_import import parse_statement
+                result = parse_statement(path)
+                # Converter ParsedStatementRow para ParsedTransaction-like structure
+                # ou adaptar o resto do fluxo
+                # Por enquanto, usar o resultado do CSV diretamente
+                existing_transactions = backend_bridge.list_transactions()
+                
+                # Verificar conflitos/duplicatas para CSV
+                existing_keys = {
+                    (t.occurred_at, t.description, t.amount.cents)
+                    for t in existing_transactions}
+                enums = backend_bridge.transaction_enums()
+                created = 0
+                skipped = 0
+                for row in result.rows:
+                    key = (row.occurred_at, row.description, row.amount_cents)
+                    if key in existing_keys:
+                        skipped += 1
+                        continue
+                    type_ = enums["expense"]  # CSV geralmente são despesas
+                    status = enums["pending"]
+                    backend_bridge.create_transaction(
+                        row.description, "Essencial", type_, row.amount_cents, "BRL",
+                        status, row.occurred_at, "")
+                    created += 1
+                
+                total_parsed = len(result.rows)
+                msg = (f"{created} lançamento(es) importado(s) do CSV, "
+                       f"{skipped} pulado(s) (já existiam) de {total_parsed} linhas.")
+                self.after(0, lambda: self._data_status_label.configure(
+                    text=msg, text_color=theme.TEXT_PRIMARY))
+                
+                # Mostrar summary
+                from iterador_ui.widgets.confirm_dialog import ConfirmDialog
+                ConfirmDialog(self, "Importação CSV",
+                              f"Importado {created} lançamentos do extrato CSV.\n"
+                              f"{skipped} já existed. {total_parsed - created - skipped} sem categoria.",
+                              on_confirm=lambda: None)
+                return
+            else:
+                # Importar como planilha Excel (original)
+                result = spreadsheet_import.parse_workbook(path)
         except Exception as exc:  # arquivo corrompido/formato inesperado — nunca travar a UI
             message = str(exc)
             self.after(0, lambda: self._data_status_label.configure(
                 text=f"Falha ao ler o arquivo: {message}", text_color=theme.VALUE_EXPENSE))
             return
 
-        # Dedup por (data, descrição, valor) — protege contra rodar a importação duas vezes.
-        existing_keys = {
-            (t.occurred_at, t.description, t.amount.cents)
-            for t in backend_bridge.list_transactions()}
+        # Detecção de conflitos: verifica se transações com mesma data+descrição
+        # já existem no banco com valores diferentes
+        existing_transactions = backend_bridge.list_transactions()
+        conflicts = spreadsheet_import.detect_conflicts(result.transactions, existing_transactions)
 
-        enums = backend_bridge.transaction_enums()
-        created = 0
-        skipped_duplicates = 0
-        for parsed in result.transactions:
-            key = (parsed.occurred_at, parsed.description, parsed.amount_cents)
-            if key in existing_keys:
-                skipped_duplicates += 1
-                continue
-            type_ = enums["income"] if parsed.is_income else enums["expense"]
-            status = enums["paid"] if parsed.is_paid else enums["pending"]
-            backend_bridge.create_transaction(
-                parsed.description, parsed.category_name, type_, parsed.amount_cents, "BRL",
-                status, parsed.occurred_at, "")
-            existing_keys.add(key)  # protege contra descrição/valor repetidos no próprio arquivo
-            created += 1
+        # Categorizar os resultados
+        has_conflicts = any(c["conflict"] for c in conflicts)
+        has_duplicates = any(c.get("is_duplicate_value_match", False) for c in conflicts)
+        no_conflicts_no_dupes = not has_conflicts and not has_duplicates
 
-        self.after(0, lambda: self._show_import_summary(created, skipped_duplicates, result))
+        if no_conflicts_no_dupes:
+            # Caso padrão: nada em conflito, pode importar tudo normalmente
+            existing_keys = {
+                (t.occurred_at, t.description, t.amount.cents)
+                for t in existing_transactions}
+            enums = backend_bridge.transaction_enums()
+            created = 0
+            skipped_duplicates = 0
+            for parsed in result.transactions:
+                key = (parsed.occurred_at, parsed.description, parsed.amount_cents)
+                if key in existing_keys:
+                    skipped_duplicates += 1
+                    continue
+                type_ = enums["income"] if parsed.is_income else enums["expense"]
+                status = enums["paid"] if parsed.is_paid else enums["pending"]
+                backend_bridge.create_transaction(
+                    parsed.description, parsed.category_name, type_, parsed.amount_cents, "BRL",
+                    status, parsed.occurred_at, "")
+                existing_keys.add(key)
+                created += 1
+            self.after(0, lambda: self._show_import_summary(created, skipped_duplicates, result))
+        elif has_duplicates and not has_conflicts:
+            # Apenas duplicatas (mesmo valor já existe) - importar o que é novo
+            existing_keys = {
+                (t.occurred_at, t.description, t.amount.cents)
+                for t in existing_transactions}
+            enums = backend_bridge.transaction_enums()
+            created = 0
+            skipped = 0
+            for parsed in result.transactions:
+                key = (parsed.occurred_at, parsed.description, parsed.amount_cents)
+                if key in existing_keys:
+                    skipped += 1
+                    continue
+                type_ = enums["income"] if parsed.is_income else enums["expense"]
+                status = enums["paid"] if parsed.is_paid else enums["pending"]
+                backend_bridge.create_transaction(
+                    parsed.description, parsed.category_name, type_, parsed.amount_cents, "BRL",
+                    status, parsed.occurred_at, "")
+                existing_keys.add(key)
+                created += 1
+            # Apresentar resumo considerando as duplicatas encontradas
+            total_parsed = len(result.transactions)
+            self.after(0, lambda: self._show_import_summary(
+                created, skipped, result, has_duplicates=True))
+        else:
+            # Há conflitos de valor: precisamos perguntar ao usuário
+            # Apresentar um diálogo com as opções
+            from iterador_ui.widgets.confirm_dialog import ConfirmDialog
+            from itertools import groupby
 
+            # Agrupar conflitos por chave (data+descrição)
+            conflict_groups = []
+            for c in conflicts:
+                if c["conflict"]:
+                    group_found = False
+                    for g in conflict_groups:
+                        if g["key"] == c["key"]:
+                            g["conflicts"].append(c)
+                            group_found = True
+                            break
+                    if not group_found:
+                        conflict_groups.append({
+                            "key": c["key"],
+                            "parsed": c["parsed"],
+                            "existing": c["existing"],
+                            "existing_values": c.get("existing_values", {}),
+                            "conflicts": [c],
+                        })
+
+            # Para cada grupo de conflito, mostrar uma confirmação
+            # Por enquanto, importar tudo e deixar o usuário decidir manualmente
+            # ou usar o valor do existente
+            # TODO: Implementar diálogo de seleção de valor por conflito
+
+            # Por ora, importar apenas os que não têm conflito e pular os conflitos
+            existing_keys = {
+                (t.occurred_at, t.description, t.amount.cents)
+                for t in existing_transactions}
+            enums = backend_bridge.transaction_enums()
+            created = 0
+            skipped_conflicts = 0
+            skipped_duplicates = 0
+            
+            for parsed in result.transactions:
+                key = (parsed.occurred_at, parsed.description, parsed.amount_cents)
+                # Verificar se tem conflito
+                conflict_for_key = [c for c in conflicts if c["key"] == key and c["conflict"]]
+                if conflict_for_key:
+                    # Há conflito - pular esta transação e avisar o usuário
+                    skipped_conflicts += 1
+                    continue
+                if key in existing_keys:
+                    skipped_duplicates += 1
+                    continue
+                type_ = enums["income"] if parsed.is_income else enums["expense"]
+                status = enums["paid"] if parsed.is_paid else enums["pending"]
+                backend_bridge.create_transaction(
+                    parsed.description, parsed.category_name, type_, parsed.amount_cents, "BRL",
+                    status, parsed.occurred_at, "")
+                existing_keys.add(key)
+                created += 1
+
+            # Mostrar resumo detalhado
+            total_parsed = len(result.transactions)
+            msg = (f"{created} lançamento(es) importado(s), "
+                   f"{skipped_duplicates} pulado(s) (já existiam), "
+                   f"{skipped_conflicts} pulado(s) (conflito de valor - usuário decisão necessária).")
+            self.after(0, lambda: self._data_status_label.configure(
+                text=msg, text_color=theme.TEXT_PRIMARY))
+
+        # Atualizar label de status com informações sobre conflitos
+        if has_conflicts:
+            conflict_msg = f"Foram detectados {len(conflicts)} conflito(s) de valor durante a importação. "
+            if has_duplicates:
+                conflict_msg += f"{sum(1 for c in conflicts if c.get('is_duplicate_value_match', False))} duplicata(s) também encontrada(s). "
+            conflict_msg += "Valores existentes mantidos e transações com conflitos de valor foram puladas."
+            self.after(0, lambda: self._data_status_label.configure(
+                text=conflict_msg, text_color=theme.VALUE_EXPENSE))
     def _show_import_summary(self, created: int, skipped_duplicates: int, result) -> None:
         text = f"{created} lançamento(s) importado(s), {skipped_duplicates} pulado(s) (já existiam)."
         if result.skipped_sheets:
@@ -329,7 +480,8 @@ class SettingsView(ctk.CTkFrame):
 
     def _import_statement(self) -> None:
         path = filedialog.askopenfilename(
-            title="Escolher extrato", filetypes=[("CSV", "*.csv")])
+            title="Escolher extrato ou planilha",
+            filetypes=[("Arquivos de Dados", "*.xlsx;*.csv"), ("CSV", "*.csv"), ("Planilha Excel", "*.xlsx"), ("Todos os arquivos", "*.*")])
         if not path:
             return
         open_singleton(self, "_statement_dialog", lambda: StatementReviewDialog(

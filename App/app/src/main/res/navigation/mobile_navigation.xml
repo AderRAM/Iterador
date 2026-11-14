@@ -3,25 +3,25 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/mobile_navigation"
-    app:startDestination="@+id/nav_transform">
+    app:startDestination="@+id/nav_dashboard">
 
     <fragment
-        android:id="@+id/nav_transform"
-        android:name="com.finance.iterador.ui.transform.TransformFragment"
-        android:label="@string/menu_transform"
-        tools:layout="@layout/fragment_transform" />
+        android:id="@+id/nav_dashboard"
+        android:name="com.finance.iterador.ui.dashboard.DashboardFragment"
+        android:label="@string/menu_dashboard"
+        tools:layout="@layout/fragment_dashboard" />
 
     <fragment
-        android:id="@+id/nav_reflow"
-        android:name="com.finance.iterador.ui.reflow.ReflowFragment"
-        android:label="@string/menu_reflow"
-        tools:layout="@layout/fragment_reflow" />
+        android:id="@+id/nav_investments"
+        android:name="com.finance.iterador.ui.investments.InvestmentsFragment"
+        android:label="@string/menu_investments"
+        tools:layout="@layout/fragment_investments" />
 
     <fragment
-        android:id="@+id/nav_slideshow"
-        android:name="com.finance.iterador.ui.slideshow.SlideshowFragment"
-        android:label="@string/menu_slideshow"
-        tools:layout="@layout/fragment_slideshow" />
+        android:id="@+id/nav_budgets"
+        android:name="com.finance.iterador.ui.budgets.BudgetsFragment"
+        android:label="@string/menu_budgets"
+        tools:layout="@layout/fragment_budgets" />
 
     <fragment
         android:id="@+id/nav_settings"
