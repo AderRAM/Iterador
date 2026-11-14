@@ -6,7 +6,8 @@ UI/_build/
 *.dll
 *.dylib
 
-UI/assets/Atlas.jpg
+UI/assets/
+Atlas.jpg
 
 # Instaladores (scripts/build_installer_linux.sh / .ps1, ver Guide/decisions/0035-...) — saída
 # gerada, nunca versionada; scripts/packaging/*.iss/*.spec/*.desktop/icon.ico continuam versionados
